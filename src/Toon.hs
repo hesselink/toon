@@ -5,10 +5,11 @@
 {-# LANGUAGE DerivingStrategies #-}
 module Toon (getAgreementIds, getThermostatInfo, Agreement (..), AgreementId (..), Temperature (..)) where
 
-import Data.Aeson (FromJSON (..))
+import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.ByteString.Lazy (ByteString)
+import Data.Ratio (denominator, numerator)
 import Data.Time (UTCTime)
-import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import Network.HTTP.Client (Manager, Response, httpLbs, parseRequest, requestHeaders, responseStatus, responseBody)
 import Network.HTTP.Types.Status (statusIsSuccessful)
 import GHC.Generics (Generic)
@@ -62,7 +63,7 @@ data ThermostatInfo = ThermostatInfo
   -- haveOTBoiler
   , lastUpdatedFromDisplay :: TimeMs
   -- setByLoadShifting
-  } deriving (Show, Eq, Generic, FromJSON)
+  } deriving (Show, Eq, Generic, FromJSON, ToJSON)
 
 newtype Temperature = Temperature { unTemperature :: Rational }
   deriving Eq
@@ -73,11 +74,17 @@ instance Show Temperature where
 instance FromJSON Temperature where
   parseJSON = fmap (Temperature . (/ 100)) . parseJSON
 
+instance ToJSON Temperature where
+  toJSON (Temperature t) = toJSON . unsafeAsInteger . (* 100) $ t
+
 data ProgramState = ProgramOff | ProgramOn | Temporary
   deriving (Show, Eq, Enum)
 
 instance FromJSON ProgramState where
   parseJSON = fmap toEnum . parseJSON
+
+instance ToJSON ProgramState where
+  toJSON = toJSON . fromEnum
 
 data ActiveState = Comfort | Home | Sleep | Away | Holiday
   deriving (Show, Eq, Enum)
@@ -85,11 +92,17 @@ data ActiveState = Comfort | Home | Sleep | Away | Holiday
 instance FromJSON ActiveState where
   parseJSON = fmap toEnum . parseJSON
 
+instance ToJSON ActiveState where
+  toJSON = toJSON . fromEnum
+
 data BurnerState =  BurnerOff | BurnerOn | HotWater | Preheat
   deriving (Show, Eq, Enum)
 
 instance FromJSON BurnerState where
   parseJSON = fmap (toEnum . read) . parseJSON
+
+instance ToJSON BurnerState where
+  toJSON = toJSON . show . fromEnum
 
 newtype Time = Time { unTime :: UTCTime }
   deriving (Show, Eq)
@@ -97,11 +110,17 @@ newtype Time = Time { unTime :: UTCTime }
 instance FromJSON Time where
   parseJSON = fmap (Time . posixSecondsToUTCTime . fromInteger) . parseJSON
 
+instance ToJSON Time where
+  toJSON (Time t) = toJSON . unsafeAsInteger . toRational . utcTimeToPOSIXSeconds $ t
+
 newtype TimeMs = TimeMs { unTimeMs :: UTCTime }
   deriving (Show, Eq)
 
 instance FromJSON TimeMs where
   parseJSON = fmap (TimeMs . posixSecondsToUTCTime . realToFrac . (/ (1000 :: Rational))) . parseJSON
+
+instance ToJSON TimeMs where
+  toJSON (TimeMs t) = toJSON . unsafeAsInteger . (* (1000 :: Rational)) . realToFrac . utcTimeToPOSIXSeconds $ t
 
 getThermostatInfo :: AccessToken -> Manager -> AgreementId -> IO ThermostatInfo
 getThermostatInfo tok mgr aid = do
@@ -126,3 +145,9 @@ decodeBody :: FromJSON a => ResponseHandler a
 decodeBody resp =
   let valOrError = Json.eitherDecode (responseBody resp)
   in either error return valOrError -- TODO better error handling
+
+unsafeAsInteger :: Rational -> Integer
+unsafeAsInteger r =
+  if denominator r == 1
+  then numerator r
+  else error $ "unsafeAsInteger: not an integer: " ++ show r
