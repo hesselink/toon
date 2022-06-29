@@ -14,15 +14,15 @@ main :: IO ()
 main = do
   cmdOpts <- CmdLine.getOpts
   cfg <- Config.get (CmdLine.configFile cmdOpts)
-  getTemperature (Config.apiToken cfg)
+  getTemperature (Config.apiToken_ cfg)
 
 -- doesn't seem to work, gives invalid code on the requestAccessToken
 -- call.
 oauthFlow :: Config -> IO ()
 oauthFlow cfg = do
-  authCode <- requestAuthorizationCode (Config.oauthClientId cfg)
+  authCode <- requestAuthorizationCode (Config.oauthClientId_ cfg)
   mgr <- newManager tlsManagerSettings
-  tok <- requestAccessToken (Config.oauthClientId cfg) (Config.oauthClientSecret cfg) (Left authCode) mgr
+  tok <- requestAccessToken (Config.oauthClientId_ cfg) (Config.oauthClientSecret_ cfg) (Left authCode) mgr
   print tok
 
 getTemperature :: AccessToken -> IO ()
