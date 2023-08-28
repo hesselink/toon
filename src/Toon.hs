@@ -47,8 +47,8 @@ data ThermostatInfo = ThermostatInfo
   , currentHumidity :: Int
   , programState :: ProgramState
   , activeState :: ActiveState
-  , nextProgram :: ProgramState
-  , nextState :: ActiveState
+  , nextProgram :: Optional ProgramState
+  , nextState :: Optional ActiveState
   , nextTime :: Time
   , nextSetpoint :: Temperature
   -- randomConfigId
@@ -64,6 +64,20 @@ data ThermostatInfo = ThermostatInfo
   , lastUpdatedFromDisplay :: TimeMs
   -- setByLoadShifting
   } deriving (Show, Eq, Generic, FromJSON, ToJSON)
+
+newtype Optional a = Optional { unOptional :: Maybe a }
+  deriving (Show, Eq)
+
+instance (Enum a, FromJSON a) => FromJSON (Optional a) where
+  parseJSON s = do
+    v <- parseJSON s
+    if v == (-1 :: Integer)
+    then pure (Optional Nothing)
+    else (Optional . Just) <$> parseJSON s
+
+instance ToJSON a => ToJSON (Optional a) where
+  toJSON (Optional Nothing) = toJSON (-1 :: Integer)
+  toJSON (Optional (Just x)) = toJSON x
 
 newtype Temperature = Temperature { unTemperature :: Rational }
   deriving Eq
