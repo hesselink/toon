@@ -46,7 +46,7 @@ data ThermostatInfo = ThermostatInfo
   , currentDisplayTemp :: Temperature
   , currentHumidity :: Int
   , programState :: ProgramState
-  , activeState :: ActiveState
+  , activeState :: Optional ActiveState
   , nextProgram :: Optional ProgramState
   , nextState :: Optional ActiveState
   , nextTime :: Time
